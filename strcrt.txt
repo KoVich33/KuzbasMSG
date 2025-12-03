@@ -1,0 +1,15 @@
+messenger/
+├── backend/
+│   ├── -app.py
+│   ├── -requirements.txt
+│   ├── -Procfile
+│   ├── -database.py
+│   └── -render.yaml
+├── frontend/
+│   ├── index.html
+│   ├── chat.html
+│   ├── login.html
+│   ├── register.html
+│   └── styles.css
+├── .gitignore
+└── README.md

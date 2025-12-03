@@ -1,0 +1,319 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Мессенджер - Чат</title>
+    <link rel="stylesheet" href="styles.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+</head>
+<body>
+    <div class="chat-container">
+        <div class="chat-header">
+            <div>
+                <h1 style="color: white; margin: 0;"><i class="fas fa-comments"></i> Web Messenger</h1>
+                <p style="margin: 5px 0 0 0; opacity: 0.9; font-size: 14px;" id="currentUser"></p>
+            </div>
+            <button class="logout-btn" onclick="logout()">
+                <i class="fas fa-sign-out-alt"></i> Выйти
+            </button>
+        </div>
+        
+        <div class="chat-main">
+            <div class="users-sidebar">
+                <div style="padding: 20px; border-bottom: 1px solid #e0e0e0;">
+                    <h3 style="color: #333; margin-bottom: 15px;">
+                        <i class="fas fa-users"></i> Пользователи
+                    </h3>
+                    <div id="unreadCount" style="background: #667eea; color: white; padding: 4px 8px; border-radius: 12px; font-size: 12px; display: inline-block;">
+                        0 непрочитанных
+                    </div>
+                </div>
+                <div class="users-list" id="usersList">
+                    <div class="loading">
+                        <i class="fas fa-spinner fa-spin"></i> Загрузка пользователей...
+                    </div>
+                </div>
+            </div>
+            
+            <div class="chat-area">
+                <div id="chatHeader" style="padding: 20px; border-bottom: 1px solid #e0e0e0; background: white; display: none;">
+                    <h3 id="chatWithUser" style="color: #333; margin: 0;"></h3>
+                </div>
+                
+                <div class="messages-container" id="messagesContainer">
+                    <div style="text-align: center; padding: 40px; color: #666;">
+                        <div style="font-size: 48px; color: #e0e0e0; margin-bottom: 20px;">
+                            <i class="fas fa-comments"></i>
+                        </div>
+                        <h3>Выберите пользователя для начала общения</h3>
+                        <p>Начните общение, выбрав пользователя из списка слева</p>
+                    </div>
+                </div>
+                
+                <div class="message-input" id="messageInput" style="display: none;">
+                    <input type="text" id="messageText" placeholder="Введите сообщение..." onkeypress="handleKeyPress(event)">
+                    <button onclick="sendMessage()">
+                        <i class="fas fa-paper-plane"></i> Отправить
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const backendUrl = localStorage.getItem('backendUrl') || 'https://your-backend.onrender.com';
+        let currentUser = null;
+        let currentChatUser = null;
+        let messageInterval = null;
+        let usersInterval = null;
+        
+        // Проверка авторизации при загрузке
+        async function checkAuth() {
+            try {
+                const response = await fetch(`${backendUrl}/api/check_auth`, {
+                    credentials: 'include'
+                });
+                
+                const data = await response.json();
+                
+                if (data.authenticated) {
+                    currentUser = data.user;
+                    document.getElementById('currentUser').textContent = `Вы: ${currentUser.username}`;
+                    loadUsers();
+                    startPolling();
+                } else {
+                    window.location.href = 'login.html';
+                }
+            } catch (error) {
+                console.error('Auth check error:', error);
+                window.location.href = 'login.html';
+            }
+        }
+        
+        // Загрузка списка пользователей
+        async function loadUsers() {
+            try {
+                const response = await fetch(`${backendUrl}/api/users`, {
+                    credentials: 'include'
+                });
+                
+                if (response.ok) {
+                    const users = await response.json();
+                    displayUsers(users);
+                }
+            } catch (error) {
+                console.error('Error loading users:', error);
+            }
+        }
+        
+        // Отображение пользователей
+        function displayUsers(users) {
+            const usersList = document.getElementById('usersList');
+            usersList.innerHTML = '';
+            
+            if (users.length === 0) {
+                usersList.innerHTML = '<div class="loading">Нет других пользователей</div>';
+                return;
+            }
+            
+            users.forEach(user => {
+                const userElement = document.createElement('div');
+                userElement.className = 'user-item';
+                userElement.innerHTML = `
+                    <div style="font-weight: 500;">${user.username}</div>
+                    <div style="font-size: 12px; color: #666; margin-top: 4px;">ID: ${user.id}</div>
+                `;
+                
+                userElement.onclick = () => startChat(user);
+                usersList.appendChild(userElement);
+            });
+            
+            updateUnreadCount();
+        }
+        
+        // Начало чата с пользователем
+        async function startChat(user) {
+            currentChatUser = user;
+            
+            // Обновляем UI
+            document.querySelectorAll('.user-item').forEach(el => {
+                el.classList.remove('active');
+            });
+            event.currentTarget.classList.add('active');
+            
+            document.getElementById('chatHeader').style.display = 'block';
+            document.getElementById('chatWithUser').textContent = `Чат с ${user.username}`;
+            document.getElementById('messageInput').style.display = 'flex';
+            
+            // Загружаем сообщения
+            await loadMessages(user.id);
+            
+            // Фокус на поле ввода
+            document.getElementById('messageText').focus();
+        }
+        
+        // Загрузка сообщений
+        async function loadMessages(receiverId) {
+            try {
+                const response = await fetch(`${backendUrl}/api/messages/${receiverId}`, {
+                    credentials: 'include'
+                });
+                
+                if (response.ok) {
+                    const messages = await response.json();
+                    displayMessages(messages);
+                }
+            } catch (error) {
+                console.error('Error loading messages:', error);
+            }
+        }
+        
+        // Отображение сообщений
+        function displayMessages(messages) {
+            const container = document.getElementById('messagesContainer');
+            container.innerHTML = '';
+            
+            if (messages.length === 0) {
+                container.innerHTML = `
+                    <div style="text-align: center; padding: 40px; color: #666;">
+                        <div style="font-size: 48px; color: #e0e0e0; margin-bottom: 20px;">
+                            <i class="fas fa-comment"></i>
+                        </div>
+                        <h3>Начните общение</h3>
+                        <p>Отправьте первое сообщение</p>
+                    </div>
+                `;
+                return;
+            }
+            
+            messages.forEach(msg => {
+                const messageElement = document.createElement('div');
+                messageElement.className = `message ${msg.is_mine ? 'sent' : 'received'}`;
+                
+                const time = new Date(msg.timestamp).toLocaleTimeString([], { 
+                    hour: '2-digit', 
+                    minute: '2-digit' 
+                });
+                
+                messageElement.innerHTML = `
+                    <div>${msg.content}</div>
+                    <div class="message-time">
+                        ${time}
+                        ${msg.is_mine ? (msg.is_read ? '✓✓' : '✓') : ''}
+                    </div>
+                `;
+                
+                container.appendChild(messageElement);
+            });
+            
+            // Прокрутка вниз
+            container.scrollTop = container.scrollHeight;
+        }
+        
+        // Отправка сообщения
+        async function sendMessage() {
+            const messageInput = document.getElementById('messageText');
+            const content = messageInput.value.trim();
+            
+            if (!content || !currentChatUser) return;
+            
+            try {
+                const response = await fetch(`${backendUrl}/api/messages`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    credentials: 'include',
+                    body: JSON.stringify({
+                        content: content,
+                        receiver_id: currentChatUser.id
+                    })
+                });
+                
+                if (response.ok) {
+                    messageInput.value = '';
+                    await loadMessages(currentChatUser.id);
+                }
+            } catch (error) {
+                console.error('Error sending message:', error);
+            }
+        }
+        
+        // Обновление количества непрочитанных сообщений
+        async function updateUnreadCount() {
+            try {
+                const response = await fetch(`${backendUrl}/api/unread_count`, {
+                    credentials: 'include'
+                });
+                
+                if (response.ok) {
+                    const data = await response.json();
+                    const count = data.count;
+                    
+                    const unreadElement = document.getElementById('unreadCount');
+                    if (count > 0) {
+                        unreadElement.textContent = `${count} непрочитанных`;
+                        unreadElement.style.background = '#ff4757';
+                    } else {
+                        unreadElement.textContent = 'Нет непрочитанных';
+                        unreadElement.style.background = '#667eea';
+                    }
+                }
+            } catch (error) {
+                console.error('Error updating unread count:', error);
+            }
+        }
+        
+        // Polling для обновления сообщений
+        function startPolling() {
+            // Обновляем список пользователей каждые 10 секунд
+            usersInterval = setInterval(() => {
+                if (currentUser) {
+                    loadUsers();
+                }
+            }, 10000);
+            
+            // Обновляем сообщения каждые 3 секунды, если чат открыт
+            messageInterval = setInterval(() => {
+                if (currentUser && currentChatUser) {
+                    loadMessages(currentChatUser.id);
+                }
+            }, 3000);
+        }
+        
+        // Обработка нажатия Enter
+        function handleKeyPress(event) {
+            if (event.key === 'Enter') {
+                sendMessage();
+            }
+        }
+        
+        // Выход
+        async function logout() {
+            try {
+                await fetch(`${backendUrl}/api/logout`, {
+                    method: 'POST',
+                    credentials: 'include'
+                });
+                
+                localStorage.removeItem('user');
+                clearInterval(messageInterval);
+                clearInterval(usersInterval);
+                window.location.href = 'login.html';
+            } catch (error) {
+                console.error('Logout error:', error);
+            }
+        }
+        
+        // Инициализация при загрузке страницы
+        document.addEventListener('DOMContentLoaded', checkAuth);
+        
+        // Очистка интервалов при закрытии страницы
+        window.addEventListener('beforeunload', () => {
+            clearInterval(messageInterval);
+            clearInterval(usersInterval);
+        });
+    </script>
+</body>
+</html>

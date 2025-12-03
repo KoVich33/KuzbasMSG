@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Мессенджер - Добро пожаловать</title>
+    <link rel="stylesheet" href="styles.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+</head>
+<body>
+    <div class="container">
+        <div class="auth-container">
+            <h1><i class="fas fa-comments"></i> Kuzbass Messenger</h1>
+            <p style="text-align: center; color: #cfcfcf; margin-bottom: 30px;">
+                Небезопасный и неудобный мессенджер
+            </p>
+            
+            <div class="backend-url">
+                <i class="fas fa-server"></i>
+                <input type="text" id="backendUrl" placeholder="https://your-backend.onrender.com">
+                <button onclick="saveBackendUrl()">Сохранить</button>
+            </div>
+            
+            <div style="text-align: center; margin: 30px 0;">
+                <div style="font-size: 48px; color: #667eea; margin-bottom: 20px;">
+                    <i class="fas fa-comment-dots"></i>
+                </div>
+                <h2>Начните общение</h2>
+                <p style="color: #d1d1d1; margin: 10px 0 30px;">
+                    Войдите в свой аккаунт или зарегистрируйтесь
+                </p>
+            </div>
+            
+            <div style="display: flex; gap: 20px;">
+                <a href="login.html" style="flex: 1;">
+                    <button class="btn" style="background: linear-gradient(135deg, #4CAF50 0%, #45a049 100%);">
+                        <i class="fas fa-sign-in-alt"></i> Войти
+                    </button>
+                </a>
+                <a href="register.html" style="flex: 1;">
+                    <button class="btn">
+                        <i class="fas fa-user-plus"></i> Регистрация
+                    </button>
+                </a>
+            </div>
+            
+            <div class="link" style="margin-top: 40px; padding-top: 20px; border-top: 1px solid #e0e0e0;">
+                <p style="color: #cecece; font-size: 14px;">
+                    <i class="fas fa-info-circle"></i> Придумайте никнейм и надежный пароль. Пароль нельзя восстановить!
+                </p>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Установите здесь URL вашего бэкенда на Render
+        const DEFAULT_BACKEND_URL = 'https://your-backend.onrender.com';
+        
+        // Загружаем сохраненный URL или используем дефолтный
+        let backendUrl = localStorage.getItem('backendUrl') || DEFAULT_BACKEND_URL;
+        document.getElementById('backendUrl').value = backendUrl;
+        
+        function saveBackendUrl() {
+            const url = document.getElementById('backendUrl').value;
+            if (url) {
+                localStorage.setItem('backendUrl', url);
+                backendUrl = url;
+                alert('URL сохранен!');
+            }
+        }
+    </script>
+</body>
+</html>
